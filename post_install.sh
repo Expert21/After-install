@@ -63,6 +63,16 @@ for pkg in git wget curl unzip zip unrar htop btop fastfetch man-db; do
     install_if_missing "$pkg"
 done
 
+# Additional Essential Tools
+echo -e "${CYAN}>>> Installing additional essentials...${NC}"
+for pkg in vim neovim p7zip rsync tree; do
+    install_if_missing "$pkg"
+done
+
+# Python (needed even outside pentest work)
+install_if_missing "python"
+install_if_missing "python-pip"
+
 # ==============================================================================
 # DESKTOP ENVIRONMENT DETECTION & INSTALLATION
 # ==============================================================================

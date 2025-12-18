@@ -5,7 +5,7 @@
 # Complete Edition - Zero Friction Setup
 # ============================================================
 
-set -e # Exit immediately if a command exits with a non-zero status
+set -u # Prevent using undefined variables (Safety), but dropped set -e for graceful continuation
 
 # Color codes for output
 RED='\033[0;31m'
@@ -15,14 +15,73 @@ NC='\033[0m' # No Color
 
 # Helper function to clone or pull git repos
 git_clone_or_update() {
-    local repo_url=""
+    local repo_url="$1"
     local dest_dir="$2"
     if [ -d "$dest_dir" ]; then
         echo -e "${YELLOW}[*] Updating $(basename "$dest_dir")...${NC}"
         (cd "$dest_dir" && git pull) || echo -e "${RED}[!] Failed to update $(basename "$dest_dir")${NC}"
     else
         echo -e "${GREEN}[*] Cloning $(basename "$dest_dir")...${NC}"
-        git clone "$repo_url" "$dest_dir"
+        git clone "$repo_url" "$dest_dir" || echo -e "${RED}[!] Failed to clone $(basename "$dest_dir")${NC}"
+    fi
+}
+
+# ------------------------------------------------------------
+# FAIL-SAFE INSTALLATION FUNCTION
+# (Pacman -> AUR -> Return Failure for Fallback)
+# ------------------------------------------------------------
+install_smart() {
+    local pkg="$1"
+    echo -e "${YELLOW}[*] Checking for package: $pkg${NC}"
+
+    # 1. Try Pacman
+    if pacman -Si "$pkg" &>/dev/null; then
+        echo -e "    ...Found in Pacman repos."
+        if sudo pacman -S --needed --noconfirm "$pkg"; then
+            echo -e "    ${GREEN}[+] Installed $pkg via Pacman.${NC}"
+            return 0
+        else
+            echo -e "    ${RED}[!] Pacman install failed (will try next method).${NC}"
+        fi
+    else
+        echo -e "    ...Not in Pacman."
+    fi
+
+    # 2. Try AUR (needs yay)
+    ensure_yay
+    if yay -Si "$pkg" &>/dev/null; then
+        echo -e "    ...Found in AUR."
+        if yay -S --needed --noconfirm "$pkg"; then
+             echo -e "    ${GREEN}[+] Installed $pkg via AUR.${NC}"
+             return 0
+        else
+             echo -e "    ${RED}[!] AUR install failed.${NC}"
+        fi
+    else
+        echo -e "    ...Not in AUR."
+    fi
+
+    return 1 # Not found / Failed
+}
+
+ensure_yay() {
+    if ! command -v yay &>/dev/null; then
+        echo -e "${YELLOW}[*] 'yay' not found. Installing yay for AUR support...${NC}"
+        sudo pacman -S --needed --noconfirm base-devel git || true
+        local tmpdir
+        tmpdir=$(mktemp -d)
+        if git clone https://aur.archlinux.org/yay.git "$tmpdir/yay"; then
+            cd "$tmpdir/yay" || return
+            if makepkg -si --noconfirm; then
+                echo -e "${GREEN}[+] yay installed.${NC}"
+            else
+                echo -e "${RED}[!] Failed to build yay.${NC}"
+            fi
+            cd - >/dev/null
+            rm -rf "$tmpdir"
+        else
+             echo -e "${RED}[!] Failed to clone yay.${NC}"
+        fi
     fi
 }
 
@@ -61,7 +120,10 @@ echo -e "${GREEN}[*] Tools will be cloned to $TOOL_DIR${NC}"
 # 1. Core Suite & Foundation
 # ============================================================
 echo -e "${YELLOW}[*] Installing Core Suite...${NC}"
-sudo pacman -S --needed --noconfirm burpsuite nikto
+echo -e "${YELLOW}[*] Installing Core Suite...${NC}"
+for tool in burpsuite nikto; do
+    install_smart "$tool" || echo -e "${RED}[!] Could not install $tool (check manually).${NC}"
+done
 
 # ============================================================
 # 2. Recon & Enumeration Stack (Go-based)
@@ -92,8 +154,18 @@ go_tools=(
 )
 
 for tool in "${go_tools[@]}"; do
-    echo -e "    ...installing ${tool%%@*}"
-    go install "$tool"
+    # Extract clean tool name (e.g. "ffuf" from "github.com/ffuf/ffuf/v2@latest")
+    # This regex removes the domain, path, and version tags
+    tool_name=$(basename "${tool%%@*}")
+    
+    echo -e "${YELLOW}[*] Processing $tool_name...${NC}"
+    
+    # Try System/AUR install first
+    if ! install_smart "$tool_name"; then
+        # Fallback to Go Install
+        echo -e "    ${YELLOW}[->] Falling back to 'go install'...${NC}"
+        go install "$tool" || echo -e "    ${RED}[!] 'go install' failed for $tool_name${NC}"
+    fi
 done
 
 echo -e "${YELLOW}[*] Updating Nuclei templates...${NC}"
@@ -101,14 +173,20 @@ echo -e "${YELLOW}[*] Updating Nuclei templates...${NC}"
 
 # Rust-based tools
 echo -e "${YELLOW}[*] Installing Rust-based tools...${NC}"
-sudo pacman -S --needed --noconfirm feroxbuster
+echo -e "${YELLOW}[*] Installing Rust-based tools...${NC}"
+install_smart "feroxbuster" || echo -e "${RED}[!] feroxbuster failed.${NC}"
 
 # Masscan
-sudo pacman -S --needed --noconfirm masscan
+# Masscan
+install_smart "masscan" || echo -e "${RED}[!] masscan failed.${NC}"
 
 # Waymore (Python)
 echo -e "${YELLOW}[*] Installing Python-based recon tools...${NC}"
-pipx install git+https://github.com/xnl-h4ck3r/waymore.git --force
+# Waymore (Python)
+echo -e "${YELLOW}[*] Installing Python-based recon tools...${NC}"
+if ! install_smart "waymore"; then
+    pipx install git+https://github.com/xnl-h4ck3r/waymore.git --force || echo -e "${RED}[!] waymore failed.${NC}"
+fi
 
 # ============================================================
 # 3. Exploitation Tools
@@ -116,10 +194,10 @@ pipx install git+https://github.com/xnl-h4ck3r/waymore.git --force
 echo -e "${YELLOW}[*] Installing Exploitation Tools...${NC}"
 
 # SQLMap
-sudo pacman -S --needed --noconfirm sqlmap
+install_smart "sqlmap" || echo -e "${RED}[!] sqlmap failed.${NC}"
 
 # Wfuzz
-sudo pacman -S --needed --noconfirm wfuzz
+install_smart "wfuzz" || echo -e "${RED}[!] wfuzz failed.${NC}"
 
 # XSStrike (Must be cloned - not pipx compatible)
 echo -e "${YELLOW}[*] Installing XSStrike...${NC}"
@@ -135,7 +213,11 @@ cd - > /dev/null
 
 # Commix
 echo -e "${YELLOW}[*] Installing Commix...${NC}"
-pipx install commix --force
+# Commix
+echo -e "${YELLOW}[*] Installing Commix...${NC}"
+if ! install_smart "commix"; then
+    pipx install commix --force || echo -e "${RED}[!] commix failed.${NC}"
+fi
 
 # Ysoserial (Java Deserialization)
 echo -e "${YELLOW}[*] Downloading Ysoserial...${NC}"
@@ -155,7 +237,11 @@ if ! gem list -i evil-winrm > /dev/null; then
 fi
 
 # CrackMapExec (via Pipx)
-pipx install crackmapexec --force
+# CrackMapExec (via Pipx)
+# Note: CME is often 'crackmapexec' in AUR
+if ! install_smart "crackmapexec"; then
+    pipx install crackmapexec --force || echo -e "${RED}[!] crackmapexec failed.${NC}"
+fi
 
 # Responder
 echo -e "${YELLOW}[*] Installing Responder...${NC}"
@@ -189,19 +275,31 @@ sudo chmod +x /usr/local/bin/jwt_tool
 cd - > /dev/null
 
 # Arjun (Parameter Discovery)
-pipx install arjun --force
+# Arjun (Parameter Discovery)
+if ! install_smart "arjun"; then
+    pipx install arjun --force || echo -e "${RED}[!] arjun failed.${NC}"
+fi
 
 # ParamSpider (via pipx)
-pipx install git+https://github.com/devanshbatham/ParamSpider --force
+# ParamSpider (via pipx)
+if ! install_smart "paramspider"; then
+    pipx install git+https://github.com/devanshbatham/ParamSpider --force || echo -e "${RED}[!] ParamSpider failed.${NC}"
+fi
 
 # CeWL (Wordlist generator)
-sudo pacman -S --needed --noconfirm cewl
+# CeWL (Wordlist generator)
+install_smart "cewl" || echo -e "${RED}[!] cewl failed.${NC}"
 
 # theHarvester
-pipx install theHarvester --force
+# theHarvester
+if ! install_smart "theharvester"; then
+    pipx install theHarvester --force || echo -e "${RED}[!] theHarvester failed.${NC}"
+fi
 
 # recon-ng
-pipx install recon-ng --force
+if ! install_smart "recon-ng"; then
+    pipx install recon-ng --force || echo -e "${RED}[!] recon-ng failed.${NC}"
+fi
 
 # ============================================================
 # 5. AI Red Teaming Tools
@@ -209,7 +307,10 @@ pipx install recon-ng --force
 echo -e "${YELLOW}[*] Installing AI Red Team Tools...${NC}"
 
 # Garak (LLM Scanner)
-pipx install garak --force
+# Garak (LLM Scanner)
+if ! install_smart "garak"; then
+    pipx install garak --force || echo -e "${RED}[!] garak failed.${NC}"
+fi
 
 # Promptmap (Python tool - not Go)
 echo -e "${YELLOW}[*] Installing Promptmap...${NC}"
@@ -253,8 +354,14 @@ echo -e "${YELLOW}[*] Downloading Wordlists (This may take time)...${NC}"
 mkdir -p "$TOOL_DIR/Wordlists"
 
 # SecLists (Pacman package)
-sudo pacman -S --needed --noconfirm seclists
-ln -sf /usr/share/seclists "$TOOL_DIR/Wordlists/SecLists"
+# SecLists (Pacman package)
+if install_smart "seclists"; then
+    ln -sf /usr/share/seclists "$TOOL_DIR/Wordlists/SecLists"
+else
+    # Fallback to manual download if pkg fails
+    echo -e "${YELLOW}[!] SecLists pkg failed. Cloning (Warning: Large download)...${NC}"
+    git_clone_or_update "https://github.com/danielmiessler/SecLists.git" "$TOOL_DIR/Wordlists/SecLists"
+fi
 
 # PayloadsAllTheThings
 git_clone_or_update "https://github.com/swisskyrepo/PayloadsAllTheThings.git" "$TOOL_DIR/Wordlists/PayloadsAllTheThings"
@@ -268,7 +375,8 @@ git_clone_or_update "https://github.com/fuzzdb-project/fuzzdb.git" "$TOOL_DIR/Wo
 echo -e "${YELLOW}[*] Installing Auxiliary Tools...${NC}"
 
 # Wireshark
-sudo pacman -S --needed --noconfirm wireshark-qt
+# Wireshark
+install_smart "wireshark-qt" || echo -e "${RED}[!] Wireshark failed.${NC}"
 sudo groupadd wireshark 2>/dev/null || true
 sudo usermod -a -G wireshark "$USER" || true
 

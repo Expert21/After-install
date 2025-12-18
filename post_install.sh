@@ -109,7 +109,7 @@ else
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo -e "${CYAN}>>> Installing Minerva Rice...${NC}"
-        RICE_DIR="$HOME/Minerva-Rice"
+        RICE_DIR="$HOME/Minerva-Rice-Install"
         if [ -d "$RICE_DIR" ]; then 
             echo "    Removing old installation directory..."
             rm -rf "$RICE_DIR"

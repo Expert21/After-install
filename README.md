@@ -32,3 +32,19 @@ This script automates the installation of a comprehensive web application penetr
 *   Pulling Docker vulnerable applications (DVWA, Juice Shop, WebGoat)
 *   Pulling Spiderfoot container
 *   Generates a `TOOLKIT_REFERENCE.md` with usage instructions.
+
+---
+
+### `uninstall.sh`
+
+> [!CAUTION]
+> **WARNING: This script is DESTRUCTIVE.** It is primarily intended for developers or users who want to completely remove the Minerva Rice setup to test fresh installs.
+
+*   **Config Deletion:** Automatically removes configuration directories for i3, polybar, rofi, dunst, picom, kitty, alacritty, and more from `~/.config`.
+*   **Dotfile Removal:** Deletes `.zshrc`, `.xinitrc`, and `.nanorc`.
+*   **Shell Reset:** Optionally resets the user shell to bash and deletes the entire Oh-My-Zsh ecosystem.
+*   **Display Manager:** Disables and removes configurations for `emptty`, `ly`, and `lemurs`.
+*   **Package Removal (Optional):** If selected, it will attempt to uninstall WMs, bars, and other rice-specific packages using `pacman` or `yay`.
+*   **Wallpaper Deletion:** Removes the `~/Pictures/Wallpapers` directory.
+
+**Always back up any personal configurations before running this script.**

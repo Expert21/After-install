@@ -304,30 +304,37 @@ fi
 # ============================================================
 # 5. AI Red Teaming Tools
 # ============================================================
-echo -e "${YELLOW}[*] Installing AI Red Team Tools...${NC}"
+echo -e "${YELLOW}[?] Install AI Red Team Tools? (Heavy download: ~1GB for Garak/PyTorch) [y/N]${NC}"
+read -r -p "" INSTALL_AI
+if [[ "$INSTALL_AI" =~ ^[Yy]$ ]]; then
 
-# Garak (LLM Scanner)
-# Garak (LLM Scanner)
-if ! install_smart "garak"; then
-    pipx install garak --force || echo -e "${RED}[!] garak failed.${NC}"
-fi
+    echo -e "${YELLOW}[*] Installing AI Red Team Tools...${NC}"
 
-# Promptmap (Python tool - not Go)
-echo -e "${YELLOW}[*] Installing Promptmap...${NC}"
-git_clone_or_update "https://github.com/utkusen/promptmap.git" "$TOOL_DIR/promptmap"
-cd "$TOOL_DIR/promptmap"
-if [ -f requirements.txt ]; then
-    if [ ! -d "venv" ]; then
-        python3 -m venv venv
+    # Garak (LLM Scanner)
+    if ! install_smart "garak"; then
+        pipx install garak --force || echo -e "${RED}[!] garak failed.${NC}"
     fi
-    source venv/bin/activate
-    pip install -r requirements.txt || echo -e "${RED}[!] Promptmap requirements failed${NC}"
-    deactivate
-fi
-cd - > /dev/null
 
-# Rebuff (Defensive AI)
-git_clone_or_update "https://github.com/protectai/rebuff.git" "$TOOL_DIR/rebuff"
+    # Promptmap (Python tool - not Go)
+    echo -e "${YELLOW}[*] Installing Promptmap...${NC}"
+    git_clone_or_update "https://github.com/utkusen/promptmap.git" "$TOOL_DIR/promptmap"
+    cd "$TOOL_DIR/promptmap"
+    if [ -f requirements.txt ]; then
+        if [ ! -d "venv" ]; then
+            python3 -m venv venv
+        fi
+        source venv/bin/activate
+        pip install -r requirements.txt || echo -e "${RED}[!] Promptmap requirements failed${NC}"
+        deactivate
+    fi
+    cd - > /dev/null
+
+    # Rebuff (Defensive AI)
+    git_clone_or_update "https://github.com/protectai/rebuff.git" "$TOOL_DIR/rebuff"
+
+else
+    echo -e "${YELLOW}[*] Skipping AI Red Team Tools.${NC}"
+fi
 
 # ============================================================
 # 6. GF Patterns Setup

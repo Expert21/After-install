@@ -109,14 +109,27 @@ else
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo -e "${CYAN}>>> Installing Minerva Rice...${NC}"
-        RICE_DIR="$HOME/Minerva-Rice-Install"
-        if [ -d "$RICE_DIR" ]; then rm -rf "$RICE_DIR"; fi
-        git clone https://github.com/Expert21/Minerva-Rice "$RICE_DIR"
-        cd "$RICE_DIR"
-        chmod +x setup.sh
-        ./setup.sh
-        cd "$HOME"
-        echo -e "${GREEN}>>> Minerva Rice installation complete!${NC}"
+        RICE_DIR="$HOME/Minerva-Rice"
+        if [ -d "$RICE_DIR" ]; then 
+            echo "    Removing old installation directory..."
+            rm -rf "$RICE_DIR"
+        fi
+        
+        if git clone https://github.com/Expert21/Minerva-Rice "$RICE_DIR"; then
+            cd "$RICE_DIR"
+            if [ -f "setup.sh" ]; then
+                chmod +x setup.sh
+                ./setup.sh
+                echo -e "${GREEN}>>> Minerva Rice installation complete!${NC}"
+            else
+                echo -e "${YELLOW}[!] setup.sh not found in the cloned repository.${NC}"
+                echo "    Listing files in $RICE_DIR:"
+                ls -F
+            fi
+            cd "$HOME"
+        else
+            echo -e "${YELLOW}[!] Failed to clone Minerva Rice repository.${NC}"
+        fi
     else
         # Prompt for Fallback (XFCE)
         echo -e "${CYAN}>>> Option 2: Install Fallback Desktop (XFCE + SDDM)${NC}"

@@ -118,6 +118,8 @@ else
         if git clone https://github.com/Expert21/Minerva-Rice "$RICE_DIR"; then
             cd "$RICE_DIR"
             if [ -f "setup.sh" ]; then
+                # Fix potential Windows CRLF line endings
+                sed -i 's/\r$//' setup.sh
                 chmod +x setup.sh
                 ./setup.sh
                 echo -e "${GREEN}>>> Minerva Rice installation complete!${NC}"

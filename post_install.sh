@@ -5,6 +5,19 @@
 
 set -e # Exit immediately if a command exits with a non-zero status.
 
+# --- SUDO KEEP-ALIVE ---
+# Ask for the password immediately
+echo "Please authenticate to start the installation process:"
+sudo -v
+
+# Update the sudo timestamp every 60 seconds in the background
+while true; do 
+  sudo -n true
+  sleep 60
+  kill -0 "$$" || exit
+done 2>/dev/null &
+# -----------------------
+
 # Colors for pretty output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

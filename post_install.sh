@@ -90,6 +90,35 @@ install_if_missing "python-pip"
 # DESKTOP ENVIRONMENT DETECTION & INSTALLATION
 # ==============================================================================
 
+# Helper function: Ensure a display manager is installed and enabled
+# If none found, install ly and enable on tty7
+ensure_display_manager() {
+    echo -e "${CYAN}>>> Checking for Display Manager...${NC}"
+    
+    # Check for existing display managers
+    for dm in ly sddm gdm lightdm lxdm; do
+        if pacman -Qi "$dm" &> /dev/null; then
+            echo -e "    ${GREEN}[+]${NC} Display Manager: Found '$dm'."
+            # Enable if not already enabled
+            if ! systemctl is-enabled display-manager &> /dev/null; then
+                echo "    >>> Enabling $dm..."
+                if [ "$dm" = "ly" ]; then
+                    sudo systemctl enable ly@tty7
+                else
+                    sudo systemctl enable "$dm"
+                fi
+            fi
+            return 0
+        fi
+    done
+    
+    # No display manager found, install ly
+    echo -e "    ${YELLOW}[-]${NC} No Display Manager found. Installing 'ly'..."
+    sudo pacman -S --needed --noconfirm ly
+    sudo systemctl enable ly@tty7
+    echo -e "    ${GREEN}[+]${NC} ly installed and enabled."
+}
+
 # Check for existing sessions (Wayland or X11)
 EXISTING_SESSIONS=$(ls /usr/share/xsessions/*.desktop /usr/share/wayland-sessions/*.desktop 2>/dev/null || true)
 
@@ -102,63 +131,109 @@ else
     echo -e "${CYAN}>>> You are currently in a headless/TTY state.${NC}"
     echo
     
-    # Prompt for Minerva Rice
-    echo -e "${CYAN}>>> Option 1: Install 'Minerva Rice' (Custom i3 Setup)${NC}"
-    echo "    repo: https://github.com/Expert21/Minerva-Rice"
-    read -p "    Install Minerva Rice? [y/N] " -n 1 -r
+    # Display menu for DE selection
+    echo -e "${CYAN}>>> Select a Desktop Environment to install:${NC}"
+    echo "    1) Minerva-Rice (Custom i3 Setup)"
+    echo "       repo: https://github.com/Expert21/Minerva-Rice"
+    echo "    2) Minerva-Hyprland (Custom Hyprland Setup)"
+    echo "       repo: https://github.com/Expert21/Minerva-hyprland"
+    echo "    3) KDE Plasma"
+    echo "    4) Skip - Do not install any DE"
     echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${CYAN}>>> Installing Minerva Rice...${NC}"
-        RICE_DIR="$HOME/Minerva-Rice-Install"
-        if [ -d "$RICE_DIR" ]; then 
-            echo "    Removing old installation directory..."
-            rm -rf "$RICE_DIR"
-        fi
-        
-        if git clone https://github.com/Expert21/Minerva-Rice "$RICE_DIR"; then
-            cd "$RICE_DIR"
-            if [ -f "setup.sh" ]; then
-                # Fix potential Windows CRLF line endings
-                sed -i 's/\r$//' setup.sh
-                chmod +x setup.sh
-                ./setup.sh
-                echo -e "${GREEN}>>> Minerva Rice installation complete!${NC}"
+    read -p "    Enter your choice [1-4]: " DE_CHOICE
+    echo
+    
+    case "$DE_CHOICE" in
+        1)
+            # Minerva Rice (i3)
+            echo -e "${CYAN}>>> Installing Minerva Rice (i3)...${NC}"
+            RICE_DIR="$HOME/Minerva-Rice-Install"
+            if [ -d "$RICE_DIR" ]; then 
+                echo "    Removing old installation directory..."
+                rm -rf "$RICE_DIR"
+            fi
+            
+            if git clone https://github.com/Expert21/Minerva-Rice "$RICE_DIR"; then
+                cd "$RICE_DIR"
+                if [ -f "setup.sh" ]; then
+                    # Fix potential Windows CRLF line endings
+                    sed -i 's/\r$//' setup.sh
+                    chmod +x setup.sh
+                    ./setup.sh
+                    echo -e "${GREEN}>>> Minerva Rice installation complete!${NC}"
+                else
+                    echo -e "${YELLOW}[!] setup.sh not found in the cloned repository.${NC}"
+                    echo "    Listing files in $RICE_DIR:"
+                    ls -F
+                fi
+                cd "$HOME"
             else
-                echo -e "${YELLOW}[!] setup.sh not found in the cloned repository.${NC}"
-                echo "    Listing files in $RICE_DIR:"
-                ls -F
-            fi
-            cd "$HOME"
-        else
-            echo -e "${YELLOW}[!] Failed to clone Minerva Rice repository.${NC}"
-        fi
-    else
-        # Prompt for Fallback (XFCE)
-        echo -e "${CYAN}>>> Option 2: Install Fallback Desktop (XFCE + SDDM)${NC}"
-        read -p "    Install XFCE4 + SDDM? [y/N] " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo -e "${CYAN}>>> Installing XFCE4 and SDDM...${NC}"
-            sudo pacman -S --needed --noconfirm xfce4 xfce4-goodies
-            
-            # Check for Display Manager (Ly vs SDDM vs GDM vs LightDM)
-            echo ">>> Checking Display Manager..."
-            # If we don't have ly, gdm, or lightdm, install sddm
-            check_alternatives "Display Manager" "sddm" "ly" "gdm" "lightdm"
-            
-            # Only enable sddm if we actually installed it or it's the chosen one
-            if pacman -Qi sddm &> /dev/null; then
-                 # minimal check to see if a display-manager service is already linked
-                 if ! systemctl is-enabled display-manager &> /dev/null; then
-                    sudo systemctl enable sddm
-                 fi
+                echo -e "${YELLOW}[!] Failed to clone Minerva Rice repository.${NC}"
             fi
             
-            echo -e "${GREEN}>>> XFCE4 Installed.${NC}"
-        else
+            # Ensure display manager
+            ensure_display_manager
+            ;;
+        2)
+            # Minerva Hyprland
+            echo -e "${CYAN}>>> Installing Minerva Hyprland...${NC}"
+            HYPR_DIR="$HOME/Minerva-Hyprland-Install"
+            if [ -d "$HYPR_DIR" ]; then
+                echo "    Removing old installation directory..."
+                rm -rf "$HYPR_DIR"
+            fi
+            
+            if git clone https://github.com/Expert21/Minerva-hyprland "$HYPR_DIR"; then
+                cd "$HYPR_DIR"
+                # Try common setup script names
+                SETUP_SCRIPT=""
+                for script in setup.sh install.sh INSTALL.sh; do
+                    if [ -f "$script" ]; then
+                        SETUP_SCRIPT="$script"
+                        break
+                    fi
+                done
+                
+                if [ -n "$SETUP_SCRIPT" ]; then
+                    # Fix potential Windows CRLF line endings
+                    sed -i 's/\r$//' "$SETUP_SCRIPT"
+                    chmod +x "$SETUP_SCRIPT"
+                    ./"$SETUP_SCRIPT"
+                    echo -e "${GREEN}>>> Minerva Hyprland installation complete!${NC}"
+                else
+                    echo -e "${YELLOW}[!] No setup script found in the cloned repository.${NC}"
+                    echo "    Listing files in $HYPR_DIR:"
+                    ls -F
+                fi
+                cd "$HOME"
+            else
+                echo -e "${YELLOW}[!] Failed to clone Minerva Hyprland repository.${NC}"
+            fi
+            
+            # Ensure display manager
+            ensure_display_manager
+            ;;
+        3)
+            # KDE Plasma
+            echo -e "${CYAN}>>> Installing KDE Plasma...${NC}"
+            sudo pacman -S --needed --noconfirm plasma-meta kde-applications-meta
+            
+            # Ensure display manager (SDDM is preferred for KDE)
+            if ! pacman -Qi sddm &> /dev/null; then
+                echo -e "${CYAN}>>> Installing SDDM (recommended for KDE)...${NC}"
+                sudo pacman -S --needed --noconfirm sddm
+            fi
+            
+            if ! systemctl is-enabled display-manager &> /dev/null; then
+                sudo systemctl enable sddm
+            fi
+            
+            echo -e "${GREEN}>>> KDE Plasma installation complete!${NC}"
+            ;;
+        4|*)
             echo -e "${YELLOW}>>> Skipping Desktop Environment installation.${NC}"
-        fi
-    fi
+            ;;
+    esac
 fi
 
 # ==============================================================================
